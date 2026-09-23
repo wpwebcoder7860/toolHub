@@ -1,0 +1,6 @@
+Options -Indexes
+
+# Keys, users, temp data, jar and shared include are not public
+<FilesMatch "(\.json|\.txt|\.jar|\.md|^auth\.php)$">
+    Require all denied
+</FilesMatch>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deploy Tool</title>
+<link rel="stylesheet" href="deploy_tool.css?v=20260924a">
+<link rel="stylesheet" href="../common/assets/hub.css">
+</head>
+<body>
+<div class="app">
+
+  <a href="../" class="hub-back" title="Back to Tool Hub" style="margin-bottom:12px;align-self:flex-start"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Tool Hub</a>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-icon">🚀</div>
+    <div>
+      <h1>Deploy Tool</h1>
+      <p>Backup · Deploy · Revert — command generator for server file operations</p>
+    </div>
+  </div>
+
+  <!-- Config -->
+  <div class="card">
+    <div class="card-label">Configuration</div>
+    <div class="inputs-row">
+      <div class="field">
+        <label>Base Path (fixed)</label>
+        <input type="text" id="basePath" readonly placeholder="/web/AxMwWeb/htdocs/" oninput="clearErr('basePath')" />
+        <span class="field-err" id="err-basePath">⚠ Base path required</span>
+      </div>
+      <div class="field">
+        <label>Date Suffix  <span style="color:var(--text-muted)">(for backup filenames)</span></label>
+        <input type="text" id="dateSuffix" placeholder="e.g. 22SEP2026" oninput="clearErr('dateSuffix')" />
+        <span class="field-err" id="err-dateSuffix">⚠ Date suffix required (for backup/revert)</span>
+      </div>
+      <div class="field" style="grid-column: 1 / -1;">
+        <label>Patch Folder Name  <span style="color:var(--text-muted)">(inside base path)</span></label>
+        <input type="text" id="patchFolder" placeholder="e.g. 22_SEP_PATCH_FOLDER" oninput="clearErr('patchFolder')" />
+        <span class="field-err" id="err-patchFolder">⚠ Patch folder required (for deploy)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- File Input -->
+  <div class="card">
+    <div class="card-label" style="margin-bottom:0">Files</div>
+
+    <!-- Tab switcher -->
+    <div class="tab-row">
+      <button class="tab active" id="tab-put" onclick="switchTab('put')">📥 PUT Commands</button>
+      <button class="tab" id="tab-manual" onclick="switchTab('manual')">✏️ Manual Paths</button>
+    </div>
+
+    <!-- PUT tab -->
+    <div id="pane-put">
+      <div class="upload-row">
+        <label class="upload-label" for="putFileInput">📄 Upload .txt</label>
+        <input type="file" id="putFileInput" class="upload-input" accept=".txt" onchange="app.handlePutFileUpload(this)" />
+        <span class="upload-filename empty" id="putFileName">No file chosen</span>
+        <button class="upload-reset-btn" id="putResetBtn" onclick="app.resetPutUpload()" disabled>✕ Reset</button>
+      </div>
+      <span class="field-err" id="err-putUpload"></span>
+      <textarea
+        class="files-input"
+        id="putInput"
+        oninput="app.onPutInput()"
+        placeholder="Paste relative paths here (one per line):
+
+module-a/scripts/handler.js
+module-b/src/Handler/ProcessHandler.php
+module-b/templates/mainForm.phtml"
+      ></textarea>
+      <span class="field-err" id="err-filesInput">⚠ No files found — paste paths above and click Generate</span>
+      <button class="parse-btn" onclick="parsePutCommands()">⚡ Generate PUT Commands</button>
+    </div>
+
+    <!-- Manual tab -->
+    <div id="pane-manual" style="display:none">
+      <div class="upload-row">
+        <label class="upload-label" for="manualFileInput">📄 Upload .txt</label>
+        <input type="file" id="manualFileInput" class="upload-input" accept=".txt" onchange="app.handleManualFileUpload(this)" />
+        <span class="upload-filename empty" id="manualFileName">No file chosen</span>
+        <button class="upload-reset-btn" id="manualResetBtn" onclick="app.resetManualUpload()" disabled>✕ Reset</button>
+      </div>
+      <span class="field-err" id="err-manualUpload"></span>
+      <textarea
+        class="files-input"
+        id="filesInput"
+        oninput="onManualInput()"
+        placeholder="Enter relative paths, one per line:
+
+module-a/scripts/handler.js
+module-b/src/Handler/ProcessHandler.php
+module-b/templates/mainForm.phtml"
+      ></textarea>
+      <span class="field-err" id="err-filesInput-manual">⚠ No files found — enter relative paths above</span>
+    </div>
+
+    <!-- Parsed files preview -->
+    <div id="parsedPreview" style="display:none">
+      <div class="parsed-header" id="parsedCount"></div>
+      <div class="parsed-list" id="parsedList"></div>
+    </div>
+  </div>
+
+  <!-- Action Buttons — shown after parse (PUT tab) or always (Manual tab) -->
+  <div id="actionSection" style="display:none; flex-direction:column; gap:10px;">
+    <div class="actions">
+      <button class="btn btn-allcmd" onclick="app.generateAllCommands()">
+        <span>📋 All Commands</span>
+        <span class="btn-sub">backup + deploy + revert list</span>
+      </button>
+      <button class="btn btn-backup" onclick="generate('backup')">
+        <span>💾 Backup</span>
+        <span class="btn-sub">adds file_DATE suffix</span>
+      </button>
+      <button class="btn btn-deploy" onclick="generate('deploy')">
+        <span>🚀 Deploy</span>
+        <span class="btn-sub">patch folder → production</span>
+      </button>
+      <button class="btn btn-revert" onclick="generate('revert')">
+        <span>↩ Revert</span>
+        <span class="btn-sub">backup → production restore</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Output -->
+  <div class="card" id="outputCard" style="display:none">
+    <div class="output-header">
+      <div class="output-title">
+        Generated Commands
+        <span class="badge" id="modeBadge"></span>
+      </div>
+      <span style="display:flex;gap:8px;align-items:center">
+        <button class="copy-all-btn" onclick="app.copyAll()">📋 Copy All</button>
+        <button class="copy-all-btn" onclick="generateAllAndDownload()">⬇ Download</button>
+        <button class="clear-btn" onclick="app.resetManualUpload()">✕ Clear</button>
+      </span>
+    </div>
+    <div class="cmd-block" id="cmdBlock"></div>
+    <div class="stats-bar" id="statsBar"></div>
+  </div>
+
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Download format choice modal -->
+<div class="modal-overlay" id="formatModalOverlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-title">Choose Download Format</div>
+    <div class="modal-desc">How do you want the Backup + Deploy + Revert commands?</div>
+    <div class="modal-actions">
+      <button class="modal-btn" id="formatBtnSh">
+        📜 .sh Script
+        <span class="modal-btn-sub">runnable bash file — backup | deploy | revert</span>
+      </button>
+      <button class="modal-btn" id="formatBtnTxt">
+        📄 .txt File
+        <span class="modal-btn-sub">plain text — all commands listed together</span>
+      </button>
+    </div>
+    <button class="modal-cancel-btn" id="formatBtnCancel">Cancel</button>
+  </div>
+</div>
+
+<script src="deploy_tool.js?v=20260923h"></script>
+
+</body>
+</html>

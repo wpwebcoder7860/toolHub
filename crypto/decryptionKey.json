@@ -1,0 +1,17 @@
+[
+    {
+        "id": 1,
+        "name": "SRFADDON",
+        "keys": "SPDF03beaaf0803861011eb094c900a0900e0000"
+    },
+    {
+        "id": 2,
+        "name": "SRFADDON_PROD",
+        "keys": "SPDF03beaaf0803861011eb094c900a0900e0000"
+    },
+    {
+        "id": 3,
+        "name": "SRFADDON_AVSS",
+        "keys": "SPDF03beaaf0803861011eb094c900a0900e0000"
+    }
+]

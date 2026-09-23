@@ -1,0 +1,27 @@
+{
+    "roles": {
+        "admin": [
+            "decrypt",
+            "encrypt",
+            "deploy",
+            "manage_keys",
+            "manage_users",
+            "dummy_view",
+            "dummy_manage"
+        ],
+        "user": [
+            "decrypt",
+            "encrypt",
+            "deploy",
+            "dummy_view"
+        ]
+    },
+    "users": [
+        {
+            "id": 1,
+            "username": "amit81",
+            "password": "admin123",
+            "role": "admin"
+        }
+    ]
+}

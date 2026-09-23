@@ -1,0 +1,5 @@
+DirectoryIndex index.php
+
+<FilesMatch "^(index\.html|.*\.md)$">
+    Require all denied
+</FilesMatch>
