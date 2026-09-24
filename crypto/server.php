@@ -1,10 +1,6 @@
 <?php
 require __DIR__ . '/../common/auth.php';
-if (isset($_GET['getFinal'])) {
-    requireLogin(($_GET['mode'] ?? '') === 'encrypt' ? 'encrypt' : 'decrypt', true);
-} elseif (!can('decrypt') && !can('encrypt')) {
-    requireLogin('decrypt', true);
-}
+// Decrypt/Encrypt is a public tool — no login required
 
 class DataDecryptor
 {

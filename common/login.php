@@ -21,16 +21,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $confirm = (string) ($_POST['confirm'] ?? '');
         if (!preg_match('/^[A-Za-z0-9_.-]{3,30}$/', $username)) {
             $error = 'Username: 3-30 chars (letters, digits, _ . -)';
-        } elseif (mb_strlen($password) < 3 || mb_strlen($password) > 8) {
-            $error = 'Password must be 3 to 8 characters.';
+        } elseif (mb_strlen($password) < 3) {
+            $error = 'Password must be at least 3 characters.';
         } elseif ($password !== $confirm) {
             $error = 'Passwords do not match.';
         } else {
             $store['users'][] = [
-                'id'       => 1,
-                'username' => $username,
-                'password' => $password,
-                'role'     => 'admin',
+                'id'          => 1,
+                'username'    => $username,
+                'password'    => $password,
+                'role'        => 'super_admin', // sole account, must never be locked out
+                'permissions' => [],
             ];
             if (!saveUsers($store)) {
                 $error = 'users.json is not writable on server, check file permission.';
@@ -102,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <form class="login-card" method="post" autocomplete="off">
         <h5 class="mb-1 fw-bold"><?= $isSetup ? 'Create first admin' : 'Tool Hub Login' ?></h5>
         <p class="small text-white-50 mb-3">
-            <?= $isSetup ? 'No users exist yet. This account will be the admin.' : 'Sign in to continue.' ?>
+            <?= $isSetup ? 'No users exist yet. This account will be the Super Admin.' : 'Sign in to continue.' ?>
         </p>
         <?php if ($error !== ''): ?>
             <div class="alert alert-danger py-2 small"><?= h($error) ?></div>
@@ -123,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="password" name="confirm" class="form-control" required>
             </div>
         <?php endif; ?>
-        <button type="submit" class="btn btn-primary w-100 mt-2"><?= $isSetup ? 'CREATE ADMIN' : 'LOGIN' ?></button>
+        <button type="submit" class="btn btn-primary w-100 mt-2"><?= $isSetup ? 'CREATE SUPER ADMIN' : 'LOGIN' ?></button>
     </form>
 </body>
 

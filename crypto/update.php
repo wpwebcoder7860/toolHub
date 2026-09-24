@@ -2,7 +2,7 @@
 require __DIR__ . '/../common/auth.php';
 
 header('Content-Type: application/json');
-requireLogin('manage_keys', true);
+// Key management is public too, same as Decrypt/Encrypt
 checkCsrf();
 
 $id            = $_POST['id'] ?? '';

@@ -19,9 +19,29 @@ function respond(bool $ok, string $message, array $extra = []): never
     exit;
 }
 
-function adminCount(array $users): int
+function superAdminCount(array $users): int
 {
-    return count(array_filter($users, fn($u) => $u['role'] === 'admin'));
+    return count(array_filter($users, fn($u) => $u['role'] === 'super_admin'));
+}
+
+// Keep only known keys, coerce to bool; super_admin ignores this entirely
+function sanitizePermissions(string $role): array
+{
+    if ($role === 'super_admin') {
+        return [];
+    }
+    $raw = json_decode((string) ($_POST['permissions'] ?? '{}'), true);
+    if (!is_array($raw)) {
+        $raw = [];
+    }
+    $out = [];
+    foreach (array_keys(PERMISSION_MODULES) as $key) {
+        $out[$key] = !empty($raw[$key]);
+    }
+    if ($role !== 'admin') {
+        $out['manage_users'] = false; // only role=admin is ever eligible (besides super_admin)
+    }
+    return $out;
 }
 
 function indexOfUser(array $users, int $id): int
@@ -36,9 +56,8 @@ function indexOfUser(array $users, int $id): int
 
 function validPassword(string $pwd): void
 {
-    $len = mb_strlen($pwd);
-    if ($len < 3 || $len > 8) {
-        respond(false, 'Password must be 3 to 8 characters');
+    if (mb_strlen($pwd) < 3) {
+        respond(false, 'Password must be at least 3 characters');
     }
 }
 
@@ -47,12 +66,13 @@ $validRoles = array_keys($store['roles']);
 switch ($action) {
     case 'list':
         $list = array_map(fn($u) => [
-            'id'       => $u['id'],
-            'username' => $u['username'],
-            'role'     => $u['role'],
-            'self'     => (int) $u['id'] === (int) $me['id'],
+            'id'          => $u['id'],
+            'username'    => $u['username'],
+            'role'        => $u['role'],
+            'permissions' => $u['permissions'] ?? [],
+            'self'        => (int) $u['id'] === (int) $me['id'],
         ], $store['users']);
-        respond(true, 'ok', ['data' => $list, 'roles' => $validRoles]);
+        respond(true, 'ok', ['data' => $list, 'roles' => $validRoles, 'modules' => PERMISSION_MODULES, 'groups' => PERMISSION_GROUPS]);
 
     case 'add':
         $username = trim((string) ($_POST['username'] ?? ''));
@@ -72,10 +92,11 @@ switch ($action) {
         }
         $newId = $store['users'] ? max(array_column($store['users'], 'id')) + 1 : 1;
         $store['users'][] = [
-            'id'       => $newId,
-            'username' => $username,
-            'password' => $password,
-            'role'     => $role,
+            'id'          => $newId,
+            'username'    => $username,
+            'password'    => $password,
+            'role'        => $role,
+            'permissions' => sanitizePermissions($role),
         ];
         if (!saveUsers($store)) {
             respond(false, 'users.json is not writable on server, check file permission');
@@ -89,10 +110,11 @@ switch ($action) {
             respond(false, 'Invalid role');
         }
         $i = indexOfUser($store['users'], $id);
-        if ($store['users'][$i]['role'] === 'admin' && $role !== 'admin' && adminCount($store['users']) <= 1) {
-            respond(false, 'Cannot demote the last admin');
+        if ($store['users'][$i]['role'] === 'super_admin' && $role !== 'super_admin' && superAdminCount($store['users']) <= 1) {
+            respond(false, 'Cannot demote the last super admin');
         }
         $store['users'][$i]['role'] = $role;
+        $store['users'][$i]['permissions'] = sanitizePermissions($role);
         if (!saveUsers($store)) {
             respond(false, 'users.json is not writable on server, check file permission');
         }
@@ -115,8 +137,8 @@ switch ($action) {
             respond(false, 'You cannot delete your own account');
         }
         $i = indexOfUser($store['users'], $id);
-        if ($store['users'][$i]['role'] === 'admin' && adminCount($store['users']) <= 1) {
-            respond(false, 'Cannot delete the last admin');
+        if ($store['users'][$i]['role'] === 'super_admin' && superAdminCount($store['users']) <= 1) {
+            respond(false, 'Cannot delete the last super admin');
         }
         array_splice($store['users'], $i, 1);
         if (!saveUsers($store)) {

@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . "/../common/auth.php";
-$me = requireLogin("decrypt");
+$me = currentUser(); // public tool, no login required
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -301,8 +301,7 @@ $me = requireLogin("decrypt");
                         <a href="index.php" class="btn btn-sm btn-light text-dark fw-bold">DECRYPT</a>
                         <a href="encrypt.php" class="btn btn-sm btn-outline-light">ENCRYPT</a>
                     </div>
-                    <?php if (can("manage_keys")): ?>
-                    <!-- Button trigger modal -->
+                    <!-- Key management is public too, same as Decrypt/Encrypt -->
                     <button type="button" class="btn btn-success btn-sm" id="addKeyBtn">
                         ADD
                         <img src="add.svg" width="20" height="20" alt="add.svg">
@@ -311,17 +310,17 @@ $me = requireLogin("decrypt");
                         EDIT
                         <img src="edit.svg" width="20" height="20" alt="edit.svg">
                     </button>
-                    <?php endif; ?>
                     <select name="projectName" class="form-select" id="projectSelect">
                         <option value="" selected>PRODUCT NAME</option>
                     </select>
                     <button type="button" class="btn btn-primary rounded-0 mb-2 btn-sm" id="decryptedData">DECRYPT / BEAUTIFY</button>
                     <button type="button" class="btn btn-danger rounded-0 btn-sm" id="clearInput" disabled>CLEAR</button>
-                    <a href="../deploy/" class="btn btn-sm btn-warning w-100 mt-2">DEPLOY TOOL</a>
                     <?php if (can("manage_users")): ?>
                     <a href="../users/" class="btn btn-sm btn-info w-100 mt-2">USERS</a>
                     <?php endif; ?>
+                    <?php if ($me !== null): ?>
                     <a href="../common/logout.php" class="btn btn-sm btn-outline-light w-100 mt-2">LOGOUT (<?= h($me["username"]) ?>)</a>
+                    <?php endif; ?>
                 </div>
             </div>
 

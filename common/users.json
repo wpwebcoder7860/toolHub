@@ -1,27 +1,30 @@
 {
     "roles": {
-        "admin": [
-            "decrypt",
-            "encrypt",
-            "deploy",
-            "manage_keys",
-            "manage_users",
-            "dummy_view",
-            "dummy_manage"
-        ],
-        "user": [
-            "decrypt",
-            "encrypt",
-            "deploy",
-            "dummy_view"
-        ]
+        "super_admin": [],
+        "admin": [],
+        "user": []
     },
     "users": [
         {
             "id": 1,
             "username": "amit81",
             "password": "admin123",
-            "role": "admin"
+            "role": "super_admin",
+            "permissions": []
+        },
+        {
+            "id": 2,
+            "username": "shivanshu",
+            "password": "123",
+            "role": "user",
+            "permissions": {
+                "dummy_view": true,
+                "dummy_add": false,
+                "dummy_update": false,
+                "dummy_delete": false,
+                "dummy_status": false,
+                "manage_users": false
+            }
         }
     ]
 }

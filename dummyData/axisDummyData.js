@@ -2,7 +2,7 @@
 const ENDPOINT = window.location.pathname;
 const JSON_FIELDS = ['accountServiceRes', 'demographicServiceRes'];
 const BATCH_SIZE = 50;
-const COLS = 9;
+const BASE_COLS = 7; // #, Account Number, Title, Description, Response, Creation Date, Status
 
 const $ = (id) => document.getElementById(id);
 
@@ -20,14 +20,6 @@ function parseJson(text) {
     } catch (e) {
         return { ok: false, error: e.message };
     }
-}
-
-// Same rule as RESPONSE_OK_SQL in index.php
-function isResponseOk(raw) {
-    if (!raw || !String(raw).trim()) return false;
-    const parsed = parseJson(raw);
-    if (!parsed.ok || parsed.value === null || typeof parsed.value !== 'object') return false;
-    return Object.keys(parsed.value).length > 0;
 }
 
 function prettyText(raw) {
@@ -121,6 +113,12 @@ class JsonEditor {
 class DummyDataPage {
     constructor() {
         this.canManage = document.body.dataset.canManage === '1';
+        this.canAdd = document.body.dataset.canAdd === '1';
+        this.canUpdate = document.body.dataset.canUpdate === '1';
+        this.canDelete = document.body.dataset.canDelete === '1';
+        this.canStatus = document.body.dataset.canStatus === '1';
+        this.showActionsCol = this.canUpdate || this.canDelete;
+        this.colCount = BASE_COLS + (this.showActionsCol ? 1 : 0);
         this.csrf = document.querySelector('meta[name="csrf-token"]').content;
         this.state = { sort: 'id', dir: 'DESC', column: '', value: '' };
         this.rows = [];
@@ -141,7 +139,8 @@ class DummyDataPage {
         this.bindTable();
         this.bindModals();
         this.bindViewModal();
-        if (this.canManage) this.bindInsert();
+        if (this.canAdd) this.bindInsert();
+        if (this.canUpdate) this.bindInlineEdit();
         this.decorateSortHeaders();
         this.reload();
     }
@@ -185,6 +184,8 @@ class DummyDataPage {
         this.wrap.addEventListener('scroll', () => {
             if (this.wrap.scrollTop + this.wrap.clientHeight >= this.wrap.scrollHeight - 120) this.loadMore();
         });
+        $('scrollLeftBtn')?.addEventListener('click', () => this.wrap.scrollBy({ left: -240, behavior: 'smooth' }));
+        $('scrollRightBtn')?.addEventListener('click', () => this.wrap.scrollBy({ left: 240, behavior: 'smooth' }));
     }
 
     decorateSortHeaders() {
@@ -222,7 +223,7 @@ class DummyDataPage {
         this.nextPage = 1;
         this.hasMore = true;
         this.wrap.scrollTop = 0;
-        this.tbody.innerHTML = `<tr class="status-row"><td colspan="${COLS}">Loading…</td></tr>`;
+        this.tbody.innerHTML = `<tr class="status-row"><td colspan="${this.colCount}">Loading…</td></tr>`;
         this.paintSortHeaders();
         this.loadMore();
     }
@@ -254,7 +255,7 @@ class DummyDataPage {
         } catch (err) {
             if (reqId !== this.requestId) return;
             if (first) {
-                this.tbody.innerHTML = `<tr class="status-row"><td colspan="${COLS}">Error: ${escapeHtml(err.message)}</td></tr>`;
+                this.tbody.innerHTML = `<tr class="status-row"><td colspan="${this.colCount}">Error: ${escapeHtml(err.message)}</td></tr>`;
                 $('showingTop').textContent = '';
             } else {
                 this.setFooter(`Error: ${err.message} — scroll again to retry`);
@@ -267,39 +268,56 @@ class DummyDataPage {
     }
 
     rowHtml(row, index) {
-        const ok = isResponseOk(row.accountServiceRes);
         const active = Number(row.status ?? 1) === 1;
-        const canToggle = this.canManage && this.hasStatus;
-        const toggleTitle = !this.hasStatus ? 'Run the status SQL to enable' : !this.canManage ? 'Only admin can change' : (active ? 'Active' : 'Inactive');
-        const actions = this.canManage
-            ? `<span class="actions">
-                    <button type="button" class="icon-btn icon-edit" data-act="view" title="View / Edit"><svg><use href="#i-edit"/></svg></button>
-                    <button type="button" class="icon-btn icon-delete" data-act="delete" title="Delete"><svg><use href="#i-trash"/></svg></button>
-               </span>`
-            : '<span class="muted">View only</span>';
+        const canToggle = this.canStatus && this.hasStatus;
+        // dummy_status permission: real toggle switch. Otherwise a plain read-only badge.
+        const statusCell = canToggle
+            ? `<td class="col-center">
+                    <label class="switch" title="${active ? 'Active' : 'Inactive'}">
+                        <input type="checkbox" data-act="toggle" ${active ? 'checked' : ''} aria-label="Active">
+                        <span class="track"></span>
+                    </label>
+               </td>`
+            : this.hasStatus
+                ? `<td class="col-center"><span class="badge ${active ? 'badge-success' : 'badge-failed'}" title="View only">${active ? 'Active' : 'Inactive'}</span></td>`
+                : `<td class="col-center"><label class="switch" title="Run the status SQL to enable"><input type="checkbox" disabled><span class="track"></span></label></td>`;
+        // No update/delete permission: whole Actions column isn't rendered
+        const actionsCell = this.showActionsCol
+            ? `<td class="col-center"><span class="actions">
+                    ${this.canUpdate ? '<button type="button" class="icon-btn icon-edit" data-act="view" title="View / Edit"><svg><use href="#i-edit"/></svg></button>' : ''}
+                    ${this.canDelete ? '<button type="button" class="icon-btn icon-delete" data-act="delete" title="Delete"><svg><use href="#i-trash"/></svg></button>' : ''}
+               </span></td>`
+            : '';
         return `<tr data-id="${escapeHtml(row.id)}">
             <td class="col-num">${index}</td>
-            <td title="${escapeHtml(row.accountNumber)}">${escapeHtml(row.accountNumber)}</td>
-            <td title="${escapeHtml(row.title)}">${escapeHtml(row.title)}</td>
-            <td title="${escapeHtml(row.description)}">${escapeHtml(row.description)}</td>
+            ${this.editableCell(row.accountNumber, 'accountNumber')}
+            ${this.editableCell(row.title, 'title')}
+            ${this.editableCell(row.description, 'description')}
             <td class="col-center"><button type="button" class="view-btn" data-act="view"><svg><use href="#i-file"/></svg>View Response</button></td>
             <td>${escapeHtml(row.creationdate)}</td>
-            <td><span class="badge ${ok ? 'badge-success' : 'badge-failed'}">${ok ? 'Success' : 'Failed'}</span></td>
-            <td class="col-center">
-                <label class="switch" title="${toggleTitle}">
-                    <input type="checkbox" data-act="toggle" ${active ? 'checked' : ''} ${canToggle ? '' : 'disabled'} aria-label="Active">
-                    <span class="track"></span>
-                </label>
-            </td>
-            <td class="col-center">${actions}</td>
+            ${statusCell}
+            ${actionsCell}
         </tr>`;
+    }
+
+    // Account Number / Title / Description: hover shows an edit icon,
+    // clicking it opens just that cell for editing (canUpdate users only)
+    editableCell(value, field) {
+        const text = escapeHtml(value);
+        if (!this.canUpdate) return `<td title="${text}">${text}</td>`;
+        // `.cell-inline` (not the <td> itself) carries display:flex — a flex <td>
+        // breaks the table's column-width sync across rows (caused misaligned columns)
+        return `<td class="editable-cell" data-field="${field}"><span class="cell-inline">
+                <span class="cell-text" title="${text}">${text}</span>
+                <button type="button" class="cell-edit-btn" data-act="edit-cell" title="Edit" tabindex="-1"><svg><use href="#i-edit"/></svg></button>
+            </span></td>`;
     }
 
     appendRows(rows, first) {
         this.tbody.querySelector('.footer-row')?.remove();
         if (first) this.tbody.innerHTML = '';
         if (first && !rows.length) {
-            this.tbody.innerHTML = `<tr class="status-row"><td colspan="${COLS}">No records found.</td></tr>`;
+            this.tbody.innerHTML = `<tr class="status-row"><td colspan="${this.colCount}">No records found.</td></tr>`;
             return;
         }
         const start = this.rows.length;
@@ -311,7 +329,7 @@ class DummyDataPage {
     setFooter(text) {
         let row = this.tbody.querySelector('.footer-row');
         if (!row) {
-            this.tbody.insertAdjacentHTML('beforeend', `<tr class="status-row footer-row"><td colspan="${COLS}"></td></tr>`);
+            this.tbody.insertAdjacentHTML('beforeend', `<tr class="status-row footer-row"><td colspan="${this.colCount}"></td></tr>`);
             row = this.tbody.querySelector('.footer-row');
         }
         row.firstElementChild.textContent = text;
@@ -342,14 +360,78 @@ class DummyDataPage {
         this.tbody.addEventListener('click', (e) => {
             const el = e.target.closest('[data-act]');
             if (!el || el.dataset.act === 'toggle') return;
+            if (el.dataset.act === 'edit-cell') {
+                this.startInlineEdit(el.closest('.editable-cell'));
+                return;
+            }
             const row = this.rowById(el.closest('tr')?.dataset.id);
             if (!row) return;
             if (el.dataset.act === 'view') this.openView(row, 'accountServiceRes');
-            if (el.dataset.act === 'delete' && this.canManage) this.openDelete(row);
+            if (el.dataset.act === 'delete' && this.canDelete) this.openDelete(row);
         });
         this.tbody.addEventListener('change', (e) => {
             if (e.target.dataset.act === 'toggle') this.toggleStatus(e.target);
         });
+    }
+
+    // ---------- inline edit (Account Number / Title / Description) ----------
+    // Hover reveals a pencil icon; clicking it opens just that cell to edit.
+    startInlineEdit(td) {
+        const span = td?.querySelector('.cell-text');
+        if (!span) return;
+        span.dataset.original = span.textContent;
+        span.contentEditable = 'true';
+        span.focus();
+        const range = document.createRange();
+        range.selectNodeContents(span);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
+    bindInlineEdit() {
+        this.tbody.addEventListener('keydown', (e) => {
+            const span = e.target.closest('.cell-text[contenteditable="true"]');
+            if (!span) return;
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                span.blur();
+            } else if (e.key === 'Escape') {
+                span.textContent = span.dataset.original ?? '';
+                span.blur();
+            }
+        });
+        this.tbody.addEventListener('focusout', (e) => {
+            const span = e.target.closest('.cell-text[contenteditable="true"]');
+            if (span) this.saveInlineEdit(span);
+        });
+    }
+
+    async saveInlineEdit(span) {
+        span.contentEditable = 'false';
+        const td = span.closest('.editable-cell');
+        const tr = span.closest('tr');
+        const row = this.rowById(tr?.dataset.id);
+        const field = td?.dataset.field;
+        const value = span.textContent.trim();
+        const original = span.dataset.original ?? '';
+        span.textContent = value;
+        if (!row || !field || value === original) return;
+        td.classList.add('saving');
+        try {
+            const body = new FormData();
+            body.append('id', row.id);
+            body.append(field, value);
+            await this.request('update', { body });
+            row[field] = value;
+            span.title = value;
+            this.toast.show('Saved.', 'ok');
+        } catch (err) {
+            span.textContent = original;
+            this.toast.show(err.message, 'err');
+        } finally {
+            td.classList.remove('saving');
+        }
     }
 
     async toggleStatus(input) {
@@ -479,9 +561,9 @@ class DummyDataPage {
         document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === tab));
         const isRaw = tab === 'raw';
         // Viewers get every tab read-only
-        const readOnly = isRaw || !this.canManage;
+        const readOnly = isRaw || !this.canUpdate;
         this.editor.setValue(isRaw ? this.rawView() : this.view.buffers[tab], readOnly);
-        $('jsonError').textContent = isRaw && this.canManage ? 'Raw view is read-only. Edit in the other two tabs.' : '';
+        $('jsonError').textContent = isRaw && this.canUpdate ? 'Raw view is read-only. Edit in the other two tabs.' : '';
     }
 
     reformat(indent) {

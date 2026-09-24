@@ -6,9 +6,9 @@ require __DIR__ . '/common/auth.php';
 $me = currentUser();
 
 $tools = [
-    ['href' => 'crypto/', 'title' => 'Decrypt', 'desc' => 'Paste an encrypted response and get readable, formatted JSON.', 'perm' => 'decrypt', 'icon' => 'unlock', 'tone' => 'blue'],
-    ['href' => 'crypto/encrypt.php', 'title' => 'Encrypt', 'desc' => 'Turn raw JSON into the encrypted string a service expects.', 'perm' => 'encrypt', 'icon' => 'lock', 'tone' => 'violet'],
-    ['href' => 'deploy/', 'title' => 'Deploy Tool', 'desc' => 'Generate backup, deploy and revert commands for server files.', 'perm' => 'deploy', 'icon' => 'rocket', 'tone' => 'amber'],
+    ['href' => 'crypto/', 'title' => 'Decrypt', 'desc' => 'Paste an encrypted response and get readable, formatted JSON.', 'perm' => 'decrypt', 'icon' => 'unlock', 'tone' => 'blue', 'public' => true],
+    ['href' => 'crypto/encrypt.php', 'title' => 'Encrypt', 'desc' => 'Turn raw JSON into the encrypted string a service expects.', 'perm' => 'encrypt', 'icon' => 'lock', 'tone' => 'violet', 'public' => true],
+    ['href' => 'deploy/', 'title' => 'Deploy Tool', 'desc' => 'Generate backup, deploy and revert commands for server files.', 'perm' => 'deploy', 'icon' => 'rocket', 'tone' => 'amber', 'public' => true],
     ['href' => 'dummyData/', 'title' => 'Axis Addon Dummy Data', 'desc' => 'Browse, search and manage dummy responses used in Axis Addon SRF.', 'perm' => 'dummy_view', 'icon' => 'db', 'tone' => 'green'],
     ['href' => 'users/', 'title' => 'User Management', 'desc' => 'Add users, change roles, reset passwords.', 'perm' => 'manage_users', 'icon' => 'users', 'tone' => 'rose', 'adminOnly' => true],
 ];
@@ -44,7 +44,7 @@ $tools = [
                 <div class="hub-logo"><svg><use href="#i-grid" /></svg></div>
                 <div>
                     <h1>Tool Hub</h1>
-                    <p>SRF Addon developer tools in one place</p>
+                    <p>Developer tools in one place</p>
                 </div>
             </div>
             <div class="hub-account">
@@ -60,35 +60,38 @@ $tools = [
         <h2 class="hub-section-title">Tools</h2>
         <div class="hub-grid">
             <?php foreach ($tools as $t):
-                // Admin cards stay hidden unless the user already has access
-                if (!empty($t['adminOnly']) && !can($t['perm'])) continue;
-                $locked = $me === null;
-                $noAccess = $me !== null && !can($t['perm']);
-                $tag = $noAccess ? 'div' : 'a';
+                $isPublic = !empty($t['public']);
+                $isAdminOnly = !empty($t['adminOnly']);
+                if ($isAdminOnly) {
+                    // Admin-only cards (Users) stay hidden — logged out or not —
+                    // unless the current session already has the permission
+                    if (!can($t['perm'])) continue;
+                    $locked = false;
+                } else {
+                    // Logged in but no access to this module: skip the card entirely
+                    if (!$isPublic && $me !== null && !can($t['perm'])) continue;
+                    $locked = !$isPublic && $me === null;
+                }
             ?>
-                <<?= $tag ?> class="hub-card tone-<?= h($t['tone']) ?><?= $noAccess ? ' disabled' : '' ?>" <?= $noAccess ? 'aria-disabled="true"' : 'href="' . h($t['href']) . '"' ?>>
+                <a class="hub-card tone-<?= h($t['tone']) ?>" href="<?= h($t['href']) ?>">
                     <div class="hub-card-icon"><svg><use href="#i-<?= h($t['icon']) ?>" /></svg></div>
                     <h2><?= h($t['title']) ?></h2>
                     <p><?= h($t['desc']) ?></p>
                     <div class="hub-card-foot">
-                        <?php if ($noAccess): ?>
-                            <span>No access for your role</span>
-                        <?php else: ?>
-                            <span>Open</span>
-                        <?php endif; ?>
+                        <span>Open</span>
                         <?php if ($locked): ?>
                             <span class="hub-badge"><svg><use href="#i-key" /></svg>Login required</span>
                         <?php elseif (!empty($t['adminOnly'])): ?>
                             <span class="hub-badge admin">Admin</span>
-                        <?php elseif (!$noAccess): ?>
+                        <?php else: ?>
                             <svg><use href="#i-arrow" /></svg>
                         <?php endif; ?>
                     </div>
-                </<?= $tag ?>>
+                </a>
             <?php endforeach; ?>
         </div>
 
-        <p class="hub-foot">Opening a tool asks you to log in first if you are not signed in.</p>
+        <p class="hub-foot">Decrypt, Encrypt and Deploy Tool are open to everyone. Other tools ask you to log in first.</p>
     </div>
 </body>
 

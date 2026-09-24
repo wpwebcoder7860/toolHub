@@ -63,10 +63,7 @@ const SERVICE_ENUM = ['CIFEnquiry', 'Account', 'Posidex', 'PanVerify', 'DL', 'Vo
 const PAGE_SIZE = 50;
 
 // Columns the table header can sort by
-const SORTABLE = ['id', 'accountNumber', 'title', 'description', 'accountServiceRes', 'demographicServiceRes', 'creationdate', 'responseStatus', 'status'];
-
-// Same rule as the UI badge: valid, non-empty JSON = Success
-const RESPONSE_OK_SQL = "(JSON_VALID(accountServiceRes) AND TRIM(accountServiceRes) NOT IN ('{}', '[]'))";
+const SORTABLE = ['id', 'accountNumber', 'title', 'description', 'accountServiceRes', 'demographicServiceRes', 'creationdate', 'status'];
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'page';
 
@@ -110,8 +107,20 @@ function runSql(\Laminas\Db\Adapter\Adapter $adapter, \Laminas\Db\Sql\SqlInterfa
 
 if ($action === 'list') {
     requireLogin('dummy_view', true);
-} elseif (in_array($action, ['insert', 'update', 'delete', 'toggle'], true)) {
-    requireLogin('dummy_manage', true);
+} elseif ($action === 'insert') {
+    requireLogin('dummy_add', true);
+    requireAjaxPost();
+    checkCsrf();
+} elseif ($action === 'update') {
+    requireLogin('dummy_update', true);
+    requireAjaxPost();
+    checkCsrf();
+} elseif ($action === 'toggle') {
+    requireLogin('dummy_status', true);
+    requireAjaxPost();
+    checkCsrf();
+} elseif ($action === 'delete') {
+    requireLogin('dummy_delete', true);
     requireAjaxPost();
     checkCsrf();
 }
@@ -155,8 +164,7 @@ if ($action === 'list') {
         $pages = max(1, (int) ceil($total / $limit));
         $page = min($page, $pages);
 
-        $orderBy = $sort === 'responseStatus' ? RESPONSE_OK_SQL : $sort;
-        $select->order([new \Laminas\Db\Sql\Expression("{$orderBy} {$dir}"), new \Laminas\Db\Sql\Expression("id {$dir}")]);
+        $select->order([new \Laminas\Db\Sql\Expression("{$sort} {$dir}"), new \Laminas\Db\Sql\Expression("id {$dir}")]);
         $select->limit($limit)->offset(($page - 1) * $limit);
 
         $rows = [];
@@ -251,6 +259,14 @@ if ($action === 'update') {
             }
             $data[$col] = $raw === '' ? null : $raw;
         }
+        // Plain-text inline-editable cells (Account Number / Title / Description)
+        foreach (['accountNumber', 'title', 'description'] as $col) {
+            if (!array_key_exists($col, $_POST)) {
+                continue;
+            }
+            $raw = trim((string) $_POST[$col]);
+            $data[$col] = $raw === '' ? null : $raw;
+        }
         if (!$data) {
             jsonResponse(['success' => false, 'error' => 'Nothing to update.'], 400);
         }
@@ -300,7 +316,11 @@ if ($action === 'toggle') {
 /** default: render the page                                           */
 /** ------------------------------------------------------------------ */
 $me = requireLogin('dummy_view');
-$canManage = can('dummy_manage');
+$canAdd = can('dummy_add');
+$canUpdate = can('dummy_update');
+$canDelete = can('dummy_delete');
+$canStatus = can('dummy_status');
+$canManage = $canAdd || $canUpdate || $canDelete;
 $authUrl = authPrefix();
 $hubUrl = authHubUrl();
 $e = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
@@ -318,7 +338,7 @@ $assetVer = static fn(string $rel): string => $rel . '?v=' . @filemtime(__DIR__ 
     <link href="../common/assets/hub.css" rel="stylesheet" type="text/css" />
 </head>
 
-<body data-can-manage="<?= $canManage ? '1' : '0' ?>">
+<body data-can-manage="<?= $canManage ? '1' : '0' ?>" data-can-add="<?= $canAdd ? '1' : '0' ?>" data-can-update="<?= $canUpdate ? '1' : '0' ?>" data-can-delete="<?= $canDelete ? '1' : '0' ?>" data-can-status="<?= $canStatus ? '1' : '0' ?>">
     <svg width="0" height="0" style="position:absolute" aria-hidden="true">
         <defs>
             <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3" fill="none" stroke="currentColor" stroke-width="2" /><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" fill="none" stroke="currentColor" stroke-width="2" /></symbol>
@@ -354,7 +374,7 @@ $assetVer = static fn(string $rel): string => $rel . '?v=' . @filemtime(__DIR__ 
             <div class="hero-right">
                 <span class="user-chip" title="Role: <?= $e($me['role']) ?>"><?= $e($me['username']) ?> · <?= $e(strtoupper($me['role'])) ?></span>
                 <a href="<?= $e($authUrl) ?>logout.php" class="btn btn-ghost">Logout</a>
-                <?php if ($canManage): ?>
+                <?php if ($canAdd): ?>
                     <button type="button" class="btn btn-white" id="openInsertBtn"><svg><use href="#i-plus" /></svg>Add New Record</button>
                 <?php endif; ?>
             </div>
@@ -407,6 +427,10 @@ $assetVer = static fn(string $rel): string => $rel . '?v=' . @filemtime(__DIR__ 
             <div class="table-top">
                 <span class="showing" id="showingTop">Loading…</span>
                 <span class="showing muted">Scroll down to load more</span>
+                <span class="table-scroll-nav">
+                    <button type="button" class="scroll-nav-btn" id="scrollLeftBtn" title="Scroll left"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    <button type="button" class="scroll-nav-btn" id="scrollRightBtn" title="Scroll right"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                </span>
             </div>
 
             <div class="table-wrap">
@@ -419,14 +443,13 @@ $assetVer = static fn(string $rel): string => $rel . '?v=' . @filemtime(__DIR__ 
                             <th data-sort="description">Description</th>
                             <th class="col-center">Response</th>
                             <th data-sort="creationdate">Creation Date</th>
-                            <th data-sort="responseStatus">Response Status</th>
                             <th data-sort="status" class="col-center">Status</th>
-                            <th class="col-center">Actions</th>
+                            <?php if ($canUpdate || $canDelete): ?><th class="col-center">Actions</th><?php endif; ?>
                         </tr>
                     </thead>
                     <tbody id="tbody">
                         <tr class="status-row">
-                            <td colspan="9">Loading…</td>
+                            <td colspan="<?= 7 + (($canUpdate || $canDelete) ? 1 : 0) ?>">Loading…</td>
                         </tr>
                     </tbody>
                 </table>
@@ -438,7 +461,7 @@ $assetVer = static fn(string $rel): string => $rel . '?v=' . @filemtime(__DIR__ 
     <div class="modal-backdrop" id="viewBackdrop">
         <div class="modal modal-view" role="dialog" aria-modal="true" aria-labelledby="viewTitle">
             <div class="modal-head">
-                <h2 id="viewTitle"><svg><use href="#i-file" /></svg><?= $canManage ? 'View / Edit Response' : 'View Response' ?></h2>
+                <h2 id="viewTitle"><svg><use href="#i-file" /></svg><?= $canUpdate ? 'View / Edit Response' : 'View Response' ?></h2>
                 <button type="button" class="icon-close" data-close="viewBackdrop" aria-label="Close"><svg><use href="#i-close" /></svg></button>
             </div>
             <div class="modal-body">
@@ -472,15 +495,15 @@ $assetVer = static fn(string $rel): string => $rel . '?v=' . @filemtime(__DIR__ 
                 <div class="json-error" id="jsonError"></div>
             </div>
             <div class="modal-foot">
-                <button type="button" class="btn btn-light" data-close="viewBackdrop"><?= $canManage ? 'Cancel' : 'Close' ?></button>
-                <?php if ($canManage): ?>
+                <button type="button" class="btn btn-light" data-close="viewBackdrop"><?= $canUpdate ? 'Cancel' : 'Close' ?></button>
+                <?php if ($canUpdate): ?>
                     <button type="button" class="btn btn-primary btn-lg" id="submitChangesBtn"><svg><use href="#i-save" /></svg>Submit Changes</button>
                 <?php endif; ?>
             </div>
         </div>
     </div>
 
-    <?php if ($canManage): ?>
+    <?php if ($canAdd): ?>
     <!-- Insert modal -->
     <div class="modal-backdrop" id="insertBackdrop">
         <div class="modal modal-insert" role="dialog" aria-modal="true" aria-labelledby="insertTitle">
@@ -522,7 +545,9 @@ $assetVer = static fn(string $rel): string => $rel . '?v=' . @filemtime(__DIR__ 
             </form>
         </div>
     </div>
+    <?php endif; ?>
 
+    <?php if ($canDelete): ?>
     <!-- Delete confirm -->
     <div class="modal-backdrop" id="deleteBackdrop">
         <div class="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="deleteTitle">

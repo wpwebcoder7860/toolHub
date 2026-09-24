@@ -435,11 +435,62 @@ textarea {
     color: #374151;
 }
 
+.table-scroll-nav {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.scroll-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+    color: #4b5563;
+    cursor: pointer;
+}
+
+.scroll-nav-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.scroll-nav-btn:hover {
+    background: #f3f4f6;
+    color: var(--primary);
+}
+
 .table-wrap {
     border: 1px solid var(--border);
     border-radius: 10px;
     overflow: auto;
     max-height: 68vh;
+    scrollbar-width: auto;
+    scrollbar-color: #b7bdc8 #f1f2f5;
+}
+
+.table-wrap::-webkit-scrollbar {
+    height: 12px;
+    width: 12px;
+}
+
+.table-wrap::-webkit-scrollbar-track {
+    background: #f1f2f5;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+    background: #b7bdc8;
+    border-radius: 6px;
+    border: 2px solid #f1f2f5;
+}
+
+.table-wrap::-webkit-scrollbar-thumb:hover {
+    background: #9aa1ad;
 }
 
 .data-table {
@@ -511,6 +562,76 @@ th.sorted.desc .sort-icon {
 
 .data-table tbody tr:last-child td {
     border-bottom: none;
+}
+
+/* The <td> itself stays a normal table-cell — display:flex here breaks
+   the table's column-width sync across rows. The flex layout lives on
+   .cell-inline instead. */
+.editable-cell {
+    overflow: hidden;
+}
+
+.cell-inline {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+}
+
+.editable-cell .cell-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    outline: none;
+}
+
+.editable-cell .cell-text[contenteditable="true"] {
+    white-space: normal;
+    background: #fff;
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 3px;
+    padding: 1px 4px;
+    cursor: text;
+    z-index: 2;
+    position: relative;
+}
+
+.cell-edit-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .12s;
+}
+
+.cell-edit-btn svg {
+    width: 13px;
+    height: 13px;
+}
+
+.editable-cell:hover .cell-edit-btn,
+.cell-edit-btn:focus-visible {
+    opacity: 1;
+}
+
+.cell-edit-btn:hover {
+    color: var(--primary);
+}
+
+.editable-cell.saving {
+    opacity: 0.55;
+    pointer-events: none;
 }
 
 .data-table tbody tr:hover td {

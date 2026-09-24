@@ -2,7 +2,8 @@
 require __DIR__ . '/../common/auth.php';
 
 header('Content-Type: application/json');
-requireLogin(null, true);
+// Decrypt/Encrypt (and key management) are fully public now — everyone
+// gets the raw key material too, needed for the public ADD/EDIT flow.
 
 $file = 'decryptionKey.json';
 
@@ -24,12 +25,7 @@ if (!is_array($dataArray)) {
 $result = [];
 $id = 1;
 
-$showKeys = can('manage_keys');
 foreach ($dataArray as $name => $key) {
-    // Non-admins only need names for the dropdown
-    if (!$showKeys) {
-        unset($key['keys']);
-    }
     $result[] = $key;
 }
 
